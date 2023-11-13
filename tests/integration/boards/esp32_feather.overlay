@@ -1,0 +1,20 @@
+&uart2 {
+    status = "okay";
+    current-speed = <115200>;
+    pinctrl-names = "default";
+    m6enano {
+        compatible = "thingmagic,m6enano";
+    };
+};
+
+&pinctrl {
+    uart2_default: uart2_default {
+        group1 {
+            pinmux = <UART2_TX_GPIO16>; // required for UART tx/rx swap
+        };
+        group2 {
+            pinmux = <UART2_RX_GPIO17>; // required for UART tx/rx swap
+            bias-pull-up;
+        };
+    };
+};
