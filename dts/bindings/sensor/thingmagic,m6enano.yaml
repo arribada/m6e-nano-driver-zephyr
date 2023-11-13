@@ -1,0 +1,6 @@
+description: |
+  M6E Nano Serial RFID reader. UHF RFID tag reader over serial.
+
+compatible: "thingmagic,m6enano"
+
+include: [base.yaml, uart-device.yaml]
