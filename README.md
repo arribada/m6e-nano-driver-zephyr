@@ -11,5 +11,5 @@ The M6E Nano is a Serial Peripheral and is connected to the Zephyr host via UART
 Commands are sent to the M6E in the following format:
 
 ```bash
-OP_CODE,DATA,SIZE,TIMEOUT,WAIT_FOR_RESPONSE
+HEADER,OP_CODE,DATA,SIZE,TIMEOUT,WAIT_FOR_RESPONSE
 ```

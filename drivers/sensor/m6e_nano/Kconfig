@@ -1,0 +1,11 @@
+# PMS7003 particulate matter sensor configuration options
+
+# Copyright (c) 2017 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+config M6ENANO
+	bool "M6E Nano RFID reader"
+	default y
+	select SERIAL
+	help
+	  Enable driver for M6E Nano UHF RFID Reader.

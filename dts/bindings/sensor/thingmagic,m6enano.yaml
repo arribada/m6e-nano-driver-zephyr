@@ -1,0 +1,7 @@
+description: |
+  UART peripheral example. Transmits data over uart on button press
+  and accumulates received data as strings.
+
+compatible: "thingmagic,m6enano"
+
+include: [base.yaml, uart-device.yaml]

@@ -1,0 +1,3 @@
+if SENSOR
+rsource "m6e_nano/Kconfig"
+endif # SENSOR

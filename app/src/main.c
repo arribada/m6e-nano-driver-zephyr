@@ -5,7 +5,6 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/sensor.h>
-#include <zephyr/drivers/uart.h>
 #include <app_version.h>
 
 #include <zephyr/logging/log.h>
@@ -16,7 +15,7 @@ int main(void)
 	int ret;
 	const struct device *sensor;
 
-	printk("Zephyr M6E Nano Application - Simple - %s\n", APP_VERSION_STRING);
+	printk("Zephyr Example Application %s\n", APP_VERSION_STRING);
 
 	sensor = DEVICE_DT_GET_ONE(thingmagic_m6enano);
 

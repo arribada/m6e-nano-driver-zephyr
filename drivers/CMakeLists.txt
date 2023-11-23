@@ -1,1 +1,1 @@
-add_subdirectory_ifdef(CONFIG_M6E_NANO m6e_nano)
+add_subdirectory_ifdef(CONFIG_SENSOR sensor)

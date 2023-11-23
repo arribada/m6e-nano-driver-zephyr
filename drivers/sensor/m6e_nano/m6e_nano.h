@@ -1,10 +1,11 @@
-#include <zephyr.h>
-#include <device.h>
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
 
 #ifndef M6E_NANO_H
 #define M6E_NANO_H
 
-#define MAX_MSG_SIZE 255
+#define MAX_MSG_SIZE       255
+#define MAX_NUMBER_OF_TAGS 150
 
 // Op codes for M6E Nano module
 #define TMR_SR_OPCODE_VERSION                    0x03
@@ -60,49 +61,37 @@
 #define REGION_NORTHAMERICA 0x0D
 #define REGION_OPEN         0xFF
 
-// Set command to be transmitted
-typedef void (*m6e_nano_peripheral_set_command_t)(const struct device *dev, const char *command,
-						  size_t length);
+uint8_t m6e_nano_payload[MAX_MSG_SIZE]; // Array to hold the outgoing message
+bool _printDebug = false;               // Flag to print UART commands and responses to serial
 
-// Callback
-typedef void (*m6e_nano_peripheral_callback_t)(const struct device *dev, char *data, size_t length,
-					       bool is_string, void *user_data);
-
-// Set the data callback function for the device
-typedef void (*m6e_nano_peripheral_set_callback_t)(const struct device *dev,
-						   m6e_nano_peripheral_callback_t callback,
-						   void *user_data);
-
-struct m6e_nano_peripheral_api {
-	m6e_nano_peripheral_set_command_t set_command;
-	m6e_nano_peripheral_set_callback_t set_callback;
+enum sensor_channel_m6e_nano {
+	/** Fingerprint template count, ID number for enrolling and searching*/
+	SENSOR_CHAN_RFID = SENSOR_CHAN_PRIV_START,
 };
 
-/**
- * @brief Set command to be transmitted.
- *
- * @param dev Pointer to the device structure.
- * @param command Command to be transmitted.
- * @param length Length of the command (excluding null byte).
- */
-static inline void m6e_nano_set_command(const struct device *dev, const char *command, size_t length)
-{
-	struct m6e_nano_peripheral_api *api = (struct m6e_nano_peripheral_api *)dev->api;
-	return api->set_command(dev, command, length);
-}
+enum sensor_attribute_m6e_nano {
+	/** Add values to the sensor which are having record storage facility */
+	SENSOR_ATTR_M6E_RD_PWR = SENSOR_ATTR_PRIV_START,
+	/** To find requested data in record storage */
+	SENSOR_ATTR_M6E_WR_PWR,
+	/** To delete mentioned data from record storage */
+	SENSOR_ATTR_M6E_REGION,
+	SENSOR_ATTR_M6E_ANT_PORT,
+	SENSOR_ATTR_M6E_ANT_LIST,
+	SENSOR_ATTR_M6E_REGION,
+	SENSOR_ATTR_M6E_TAG_PROTOCOL,
+};
 
-/**
- * @brief Set the data callback function for the device
- *
- * @param dev Pointer to the device structure.
- * @param callback Callback function pointer.
- * @param user_data Pointer to data accessible from the callback function.
- */
-static inline void m6e_nano_set_callback(const struct device *dev,
-					m6e_nano_peripheral_callback_t callback, void *user_data)
-{
-	struct m6e_nano_peripheral_api *api = (struct m6e_nano_peripheral_api *)dev->api;
-	return api->set_callback(dev, callback, user_data);
-}
+struct m6e_nano_data {
+	uint16_t rx_buf[MAX_MSG_SIZE];
+	uint16_t tags[MAX_NUMBER_OF_TAGS][12]; // Assumes EPC won't be longer than 12 bytes
+	int16_t tagRSSI[MAX_NUMBER_OF_TAGS];
+	uint16_t uniqueTags;
+	uint16_t success;
+};
+
+struct m6e_nano_config {
+	const struct device *uart_dev;
+};
 
 #endif // M6E_NANO_PERIPHERAL_H

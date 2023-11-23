@@ -5,6 +5,8 @@ manifest:
   remotes:
     - name: zephyr
       url-base: https://github.com/zephyrproject-rtos/
+    - name: arribada
+      url-base: https://github.com/arribada/
 
   projects:
     - name: zephyr
@@ -17,7 +19,8 @@ manifest:
         name-allowlist:
           - cmsis # required by the ARM port
           - hal_rpi_pico
-          - fatfs
+          - hal_nordic # required by the custom_plank board (Nordic based)
+          - hal_stm32 # required by the nucleo_f302r8 board (STM32 based)
 
   self:
     path: m6e-nano-driver-zephyr
