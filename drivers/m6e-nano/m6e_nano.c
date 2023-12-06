@@ -65,7 +65,7 @@ static void m6e_nano_uart_flush(const struct device *dev)
 	LOG_DBG("UART RX buffer flushed.");
 }
 
-uint8_t getTagDataBytes(const struct device *dev)
+static uint8_t _get_tag_data_bytes(const struct device *dev)
 {
 	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
 	uint8_t *msg = data->response.data;
@@ -91,7 +91,7 @@ uint8_t m6e_nano_get_tag_epc_bytes(const struct device *dev)
 
 	uint16_t epcBits = 0; // Number of bits of EPC (including PC, EPC, and EPC CRC)
 
-	uint8_t tagDataBytes = getTagDataBytes(dev); // We need this offset
+	uint8_t tagDataBytes = _get_tag_data_bytes(dev); // We need this offset
 
 	for (uint8_t x = 0; x < 2; x++) {
 		epcBits |= (uint16_t)msg[27 + tagDataBytes + x] << (8 * (1 - x));
@@ -100,6 +100,40 @@ uint8_t m6e_nano_get_tag_epc_bytes(const struct device *dev)
 	epcBytes -= 4; // Ignore the first two bytes and last two bytes
 
 	return (epcBytes);
+}
+
+uint8_t m6e_nano_get_tag_rssi(const struct device *dev)
+{
+	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
+	uint8_t *msg = data->response.data;
+	uint8_t rssi = msg[12] - 256;
+	return rssi;
+}
+
+uint16_t m6e_nano_get_tag_timestamp(const struct device *dev)
+{
+	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
+	uint8_t *msg = data->response.data;
+	// Timestamp since last Keep-Alive message
+	uint32_t timeStamp = 0;
+	for (uint8_t x = 0; x < 4; x++) {
+		timeStamp |= (uint32_t)msg[17 + x] << (8 * (3 - x));
+	}
+
+	return timeStamp;
+}
+
+uint32_t m6e_nano_get_tag_freq(const struct device *dev)
+{
+	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
+	uint8_t *msg = data->response.data;
+	// Frequency of the tag detected is loaded over three bytes
+	uint32_t freq = 0;
+	for (uint8_t x = 0; x < 3; x++) {
+		freq |= (uint32_t)msg[14 + x] << (8 * (2 - x));
+	}
+
+	return freq;
 }
 
 void m6e_nano_disable_read_filter(const struct device *dev)
@@ -178,6 +212,13 @@ SETU8(newMsg, i, (uint8_t)TMR_TAG_PROTOCOL_GEN2); // protocol ID
 				   COMMAND_TIME_OUT);
 }
 
+/**
+ * @brief Set the operating region of the M6E Nano. This controls the transmission frequency of the
+ * RFID reader.
+ *
+ * @param dev UART peripheral device.
+ * @param region Operating region to set.
+ */
 void m6e_nano_set_region(const struct device *dev, uint8_t region)
 {
 
@@ -434,6 +475,7 @@ static void uart_cb_handler(const struct device *dev, void *user_data)
 
 	int len, pkt_sz = 0;
 	int offset = drv_data->response.len;
+	m6e_nano_callback_t callback = drv_data->callback;
 
 	if ((uart_irq_update(dev) > 0) && (uart_irq_is_pending(dev) > 0)) {
 		while (uart_irq_rx_ready(dev)) {
@@ -447,7 +489,7 @@ static void uart_cb_handler(const struct device *dev, void *user_data)
 					break;
 				} else if (drv_data->response.data[offset] ==
 					   ERROR_COMMAND_RESPONSE_TIMEOUT) {
-					LOG_ERR("Msg Error: %X", drv_data->response.data[offset]);
+					LOG_WRN("COMMAND RESPONSE TIMEOUT");
 					drv_data->status = ERROR_COMMAND_RESPONSE_TIMEOUT;
 				}
 				len = 0;
@@ -475,15 +517,17 @@ static void uart_cb_handler(const struct device *dev, void *user_data)
 		// for (size_t i = 0; i < drv_data->response.msg_len; i++) {
 		// 	printk("[%X] ", drv_data->response.data[i]);
 		// }
+
 		drv_data->status = RESPONSE_PENDING;
+		if (callback != NULL) {
+			callback(dev, user_data);
+		}
 		LOG_DBG("Response received.");
 	} else if (offset > M6E_NANO_BUF_SIZE) {
 		drv_data->response.len = 0;
 		drv_data->status = RESPONSE_FAIL;
-		// memset(&drv_data->response.data, 0, M6E_NANO_BUF_SIZE); // Drop the response
-		// buffer
-		m6e_nano_uart_flush(dev);
-		LOG_ERR("Response too long, %d.", offset);
+		m6e_nano_uart_flush(dev); // Flush the buffer on overflow
+		LOG_WRN("Response too long, %d.", offset);
 	}
 }
 
@@ -522,19 +566,17 @@ uint8_t m6e_nano_parse_response(const struct device *dev)
 					// the LEN field to get total bytes
 	LOG_DBG("Msg length: %d", msgLength);
 	uint8_t opCode = msg[2];
-	for (uint8_t x = 0; x < msgLength; x++) {
-		printk("%X ", msg[x]);
-	}
-	printk("\n");
-	printk("Size: %d\n", msgLength - 4);
+	// for (uint8_t x = 0; x < msgLength; x++) {
+	// 	printk("%X ", msg[x]);
+	// }
+	// printk("\n");
 	// Check the CRC on this response
 	uint16_t messageCRC = calculate_crc(
 		&msg[1],
 		msgLength - 3); // Ignore header (start spot 1), remove 3 bytes (header + 2 CRC)
-	printk("CRC: %X\n", messageCRC);
 	if ((msg[msgLength - 2] != (messageCRC >> 8)) ||
 	    (msg[msgLength - 1] != (messageCRC & 0xFF))) {
-		LOG_ERR("CRC error.");
+		LOG_WRN("CRC error.");
 		return (ERROR_CORRUPT_RESPONSE);
 	}
 
@@ -575,18 +617,6 @@ uint8_t m6e_nano_parse_response(const struct device *dev)
 		// m6e_nano_uart_flush(dev);
 		return (ERROR_UNKNOWN_OPCODE);
 	}
-}
-
-/**
- * @brief Set the operating region of the M6E Nano. This controls the transmission frequency of the
- * RFID reader.
- *
- * @param dev UART peripheral device.
- * @param region Operating region to set.
- */
-int m6e_nano_region_set(const struct device *dev, uint8_t region)
-{
-	return 0;
 }
 
 /**

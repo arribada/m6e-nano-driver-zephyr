@@ -75,8 +75,7 @@ typedef void (*m6e_nano_send_command_t)(const struct device *dev, const uint8_t 
 					const uint8_t length);
 
 // Callback
-typedef void (*m6e_nano_callback_t)(const struct device *dev, char *data, size_t length,
-				    bool is_string, void *user_data);
+typedef void (*m6e_nano_callback_t)(const struct device *dev, void *user_data);
 
 // Set the data callback function for the device
 typedef void (*m6e_nano_set_callback_t)(const struct device *dev, m6e_nano_callback_t callback,
