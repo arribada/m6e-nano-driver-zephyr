@@ -120,8 +120,23 @@ struct m6e_nano_buf {
 	size_t msg_len;
 };
 
+struct m6e_nano_epc {
+	uint8_t len;
+	uint16_t *epc;
+};
+
+struct m6e_nano_tag {
+	long freq;
+	long timestamp;
+	struct m6e_nano_epc;
+};
+
 struct m6e_nano_data {
 	bool debug;
+	bool ready;
+
+	struct m6e_nano_tag tag;
+
 	u_int8_t status;
 	struct m6e_nano_buf command;
 	struct m6e_nano_buf response;

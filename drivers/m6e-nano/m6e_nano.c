@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Arribada Initiative CIC
+ * Copyright (c) 2023 Arribada Initiative
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,21 +7,11 @@
 #define DT_DRV_COMPAT          thingmagic_m6enano
 #define M6E_NANO_INIT_PRIORITY 41
 
-/* sensor m6e_nano.c - Driver for plantower PMS7003 sensor
- * PMS7003 product: http://www.plantower.com/en/content/?110.html
- * PMS7003 spec: http://aqicn.org/air/view/sensor/spec/pms7003.pdf
- */
-
-#include <errno.h>
-
-#include <zephyr/init.h>
-#include <zephyr/kernel.h>
-#include <stdlib.h>
-#include <string.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/uart.h>
 
 #include "m6e_nano.h"
-
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(M6E_NANO, CONFIG_M6E_NANO_LOG_LEVEL);
 
@@ -323,7 +313,7 @@ static void m6e_nano_construct_command(const struct device *dev, uint8_t opcode,
  */
 static void user_send_command(const struct device *dev, uint8_t *command, const uint8_t length)
 {
-
+	int err;
 	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
 	const struct m6e_nano_config *cfg = dev->config;
 	struct m6e_nano_buf *tx = &data->command;
@@ -360,22 +350,14 @@ static void user_send_command(const struct device *dev, uint8_t *command, const 
 	}
 
 	// uart_irq_tx_enable(cfg->uart_dev);
-
-	for (size_t i = 0; i < tx->len; i++) {
-		// printk("[%X] ", buf[i]);
-		// uart_tx(cfg->uart_dev, tx->data[i], tx->len, 300);
-		uart_poll_out(cfg->uart_dev, tx->data[i]);
+	err = uart_tx(cfg->uart_dev, tx->data, sizeof(tx->data), SYS_FOREVER_US);
+	if (err) {
+		return err;
 	}
 
-	// char buf[5] = {0xFF, 0x00, 0x03, 0x1D, 0x0C};
-	// for (size_t i = 0; i < 5; i++) {
-	// 	uart_poll_out(cfg->uart_dev, buf[i]);
+	// for (size_t i = 0; i < tx->len; i++) {
+	// 	uart_poll_out(cfg->uart_dev, tx->data[i]);
 	// }
-
-	// uart_irq_rx_enable(cfg->uart_dev);
-
-	// uart_poll_out(cfg->uart_dev, '\0');
-	// LOG_DBG("Command sent.");
 }
 
 /**
@@ -619,6 +601,56 @@ uint8_t m6e_nano_parse_response(const struct device *dev)
 	}
 }
 
+static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
+{
+
+	struct m6e_nano_data *data = user_data;
+	m6e_nano_callback_t callback = data->callback;
+
+	LOG_DBG("evt->type %d", evt->type);
+	switch (evt->type) {
+	case UART_TX_DONE:
+		LOG_DBG("Tx sent %d bytes", evt->data.tx.len);
+		break;
+
+	case UART_TX_ABORTED:
+		LOG_ERR("Tx aborted");
+		break;
+
+	case UART_RX_RDY:
+		LOG_DBG("Received data %d bytes", evt->data.rx.len);
+
+		for (int i = 0; i < evt->data.rx.len; i++) {
+			if (evt->data.rx.buf[i] == TMR_START_HEADER &&
+			    (evt->data.rx.buf[i + 1] + 7) == evt->data.rx.len &&
+			    evt->data.rx.len - i >= M6E_NANO_BUF_SIZE) {
+
+				LOG_HEXDUMP_DBG(evt->data.rx.buf, evt->data.rx.len, "bytes: ");
+				// data->tag.val1 =
+				// 	(evt->data.rx.buf[i + 6] << 8) + evt->data.rx.buf[i + 7];
+
+				memset(&data->response.data, evt->data.rx.buf, evt->data.rx.len);
+
+				data->ready = true;
+
+				// parse response data
+				if (callback != NULL) {
+					callback(dev, user_data);
+				}
+				break;
+			}
+		}
+
+		break;
+	case UART_RX_STOPPED:
+		break;
+	case UART_RX_BUF_REQUEST:
+	case UART_RX_BUF_RELEASED:
+	case UART_RX_DISABLED:
+		break;
+	}
+}
+
 /**
  * @brief Initialize the M6E Nano.
  *
@@ -626,26 +658,32 @@ uint8_t m6e_nano_parse_response(const struct device *dev)
  */
 static int m6e_nano_init(const struct device *dev)
 {
+	int err = 0;
 	const struct m6e_nano_config *cfg = dev->config;
-	struct m6e_nano_data *drv_data = dev->data;
+	struct m6e_nano_data *data = dev->data;
 
 	if (!device_is_ready(cfg->uart_dev)) {
-		LOG_ERR("Bus device is not ready");
-		return -ENODEV;
+		LOG_ERR("Unable to get UART");
+		return -EIO;
 	}
 
 	// enables debugging
 	// TODO: make this into a KConfig option
 	if (CONFIG_M6E_NANO_LOG_LEVEL >= LOG_LEVEL_DBG) {
 		LOG_DBG("Debugging for UART packet logging is enabled.");
-		drv_data->debug = true;
+		data->debug = true;
 	}
+
+	/* Set the callback */
+	err = uart_callback_set(cfg->uart_dev, uart_cb, data);
+	__ASSERT(err == 0, "Failed to set callback");
+	data->ready = false;
 
 	// flush the uart rx buffer
 	m6e_nano_uart_flush(cfg->uart_dev);
-	struct m6e_nano_buf *rx = &drv_data->response;
+	struct m6e_nano_buf *rx = &data->response;
 	rx->len = 0;
-	drv_data->status = RESPONSE_CLEAR;
+	data->status = RESPONSE_CLEAR;
 
 	uart_irq_callback_user_data_set(cfg->uart_dev, uart_cb_handler, (void *)dev);
 	uart_irq_rx_enable(cfg->uart_dev);
@@ -663,5 +701,17 @@ static int m6e_nano_init(const struct device *dev)
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(inst, &m6e_nano_init, NULL, &m6e_nano_data_##inst,                   \
 			      &m6e_nano_config_##inst, POST_KERNEL, M6E_NANO_INIT_PRIORITY, &api);
+
+/* Main instantiation macro */
+// #define HPMA115S0_DEFINE(inst)                                                           \
+//     static struct hpma115s0_data hpma115s0_data_##inst;                                  \
+//     static const struct hpma115s0_config hpma115s0_config_##inst = {                     \
+//         .bus = DEVICE_DT_GET(DT_INST_BUS(inst)),                                         \
+//         .power_en_pin = GPIO_DT_SPEC_INST_GET_OR(inst, enable_gpios, {0}),               \
+//     };                                                                                   \
+//     DEVICE_DT_INST_DEFINE(inst,                                                          \
+//                           hpma115s0_init, NULL,                                          \
+//                           &hpma115s0_data_##inst, &hpma115s0_config_##inst, POST_KERNEL, \
+//                           CONFIG_SENSOR_INIT_PRIORITY, &hpma115s0_api);
 
 DT_INST_FOREACH_STATUS_OKAY(M6E_NANO_DEFINE)
