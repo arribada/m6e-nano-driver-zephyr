@@ -1,0 +1,7 @@
+tests:
+  drivers.sensor.m6e_nano.framework_tests:
+    tags:
+      - drivers
+      - sensor
+      - subsys
+    platform_allow: rpi_pico
