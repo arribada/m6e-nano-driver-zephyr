@@ -21,7 +21,7 @@ void read_callback(const struct device *dev, void *user_data)
 	const struct device *m6e_nano_dev = user_data;
 	struct m6e_nano_data *drv_data = m6e_nano_dev->data;
 
-	if (drv_data->status == RESPONSE_PENDING) {
+	if (drv_data->status == RESPONSE_SUCCESS) {
 		int res = m6e_nano_parse_response(user_data);
 		char *res_str = "";
 		switch (res) {
@@ -71,10 +71,6 @@ int main(void)
 {
 	const struct device *dev = DEVICE_DT_GET_ONE(thingmagic_m6enano);
 
-	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
-
-	LOG_INF("Starting demo...");
-
 	LOG_INF("Setting baud rate...");
 	m6e_nano_set_baud(dev, 115200);
 
@@ -82,7 +78,7 @@ int main(void)
 	m6e_nano_get_version(dev);
 
 	LOG_INF("Setting tag protocol...");
-	m6e_nano_set_tag_protocol(dev);
+	m6e_nano_set_tag_protocol(dev, TMR_TAG_PROTOCOL_GEN2);
 
 	LOG_INF("Setting antenna port...");
 	m6e_nano_set_antenna_port(dev);
@@ -92,6 +88,9 @@ int main(void)
 
 	LOG_INF("Setting read power...");
 	m6e_nano_set_read_power(dev, 1000);
+
+	LOG_INF("Setting power mode...");
+	m6e_nano_set_power_mode(dev, TMR_SR_POWER_MODE_MED_SAVE);
 
 	LOG_INF("Start reading...");
 	m6e_nano_start_reading(dev);

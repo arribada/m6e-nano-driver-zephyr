@@ -25,8 +25,29 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(M6E_NANO, CONFIG_M6E_NANO_LOG_LEVEL);
 
-/* wait serial output with 1000ms timeout */
-#define CFG_M6E_NANO_SERIAL_TIMEOUT 1000
+static const uint16_t crc_table[] = {
+	0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
+	0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef,
+};
+
+/**
+ * @brief Calculate the CRC of the command being transmitted.
+ *
+ * @param u8Buf Partial of the command to calculate the CRC for.
+ * @param len Length of the partial command.
+ * @return uint16_t CRC of the command. To be transmitted as the last two bytes of the command.
+ */
+static uint16_t calculate_crc(uint8_t *u8Buf, uint8_t len)
+{
+	uint16_t crc = 0xFFFF;
+
+	for (uint8_t i = 0; i < len; i++) {
+		crc = ((crc << 4) | (u8Buf[i] >> 4)) ^ crc_table[crc >> 12];
+		crc = ((crc << 4) | (u8Buf[i] & 0x0F)) ^ crc_table[crc >> 12];
+	}
+
+	return crc;
+}
 
 static void m6e_nano_print_hex(uint8_t *msg, uint8_t len)
 {
@@ -63,6 +84,36 @@ static void m6e_nano_uart_flush(const struct device *dev)
 	memset(&drv_data->response.data, 0, M6E_NANO_BUF_SIZE);
 
 	LOG_DBG("UART RX buffer flushed.");
+}
+
+/**
+ * @brief Construct the command to be transmitted by the UART peripheral.
+ *
+ * @param dev UART peripheral device.
+ * @param region region to set.
+ */
+static void m6e_nano_construct_command(const struct device *dev, uint8_t opcode, uint8_t *data,
+				       uint8_t size, uint16_t timeout)
+{
+	uint8_t command[size + 5];
+	command[0] = 0xFF; // universal header
+	command[1] = size; // load the length of this operation into msg array
+	command[2] = opcode;
+	command[3] = *data;
+
+	// Copy the data into msg array
+	for (uint8_t x = 0; x < size; x++) {
+		command[3 + x] = data[x];
+	}
+
+	// calculate the CRC
+	uint16_t crc = calculate_crc(&command[1], size + 2);
+	command[size + 3] = crc >> 8;
+	command[size + 4] = crc & 0xFF;
+
+	size_t length = sizeof(command) / sizeof(*command);
+
+	user_send_command(dev, command, length); // Send and wait for response
 }
 
 static uint8_t _get_tag_data_bytes(const struct device *dev)
@@ -165,6 +216,13 @@ void m6e_nano_stop_read(const struct device *dev)
 	uint8_t data[] = {0x00, 0x00, 0x02};
 
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_BAUD_RATE, data, sizeof(data),
+				   COMMAND_TIME_OUT);
+}
+
+void m6e_nano_set_power_mode(const struct device *dev, uint8_t mode)
+{
+	uint8_t data[1] = {mode};
+	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_POWER_MODE, data, sizeof(data),
 				   COMMAND_TIME_OUT);
 }
 
@@ -279,39 +337,9 @@ void m6e_nano_set_baud(const struct device *dev, long baud_rate)
  * @param data Data to be sent.
  */
 void m6e_nano_send_generic_command(const struct device *dev, uint8_t *command, uint8_t size,
-				   uint8_t *opcode)
+				   uint8_t opcode)
 {
 	m6e_nano_construct_command(dev, opcode, command, size, COMMAND_TIME_OUT);
-}
-
-/**
- * @brief Construct the command to be transmitted by the UART peripheral.
- *
- * @param dev UART peripheral device.
- * @param region region to set.
- */
-static void m6e_nano_construct_command(const struct device *dev, uint8_t opcode, uint8_t *data,
-				       uint8_t size, uint16_t timeout)
-{
-	uint8_t command[size + 5];
-	command[0] = 0xFF; // universal header
-	command[1] = size; // load the length of this operation into msg array
-	command[2] = opcode;
-	command[3] = data;
-
-	// Copy the data into msg array
-	for (uint8_t x = 0; x < size; x++) {
-		command[3 + x] = data[x];
-	}
-
-	// calculate the CRC
-	uint16_t crc = calculate_crc(&command[1], size + 2);
-	command[size + 3] = crc >> 8;
-	command[size + 4] = crc & 0xFF;
-
-	size_t length = sizeof(command) / sizeof(*command);
-
-	user_send_command(dev, command, length); // Send and wait for response
 }
 
 /**
@@ -359,23 +387,20 @@ static void user_send_command(const struct device *dev, uint8_t *command, const 
 		}
 	}
 
-	// uart_irq_tx_enable(cfg->uart_dev);
-
 	for (size_t i = 0; i < tx->len; i++) {
-		// printk("[%X] ", buf[i]);
-		// uart_tx(cfg->uart_dev, tx->data[i], tx->len, 300);
+		data->status = RESPONSE_CLEAR;
 		uart_poll_out(cfg->uart_dev, tx->data[i]);
 	}
 
-	// char buf[5] = {0xFF, 0x00, 0x03, 0x1D, 0x0C};
-	// for (size_t i = 0; i < 5; i++) {
-	// 	uart_poll_out(cfg->uart_dev, buf[i]);
-	// }
-
-	// uart_irq_rx_enable(cfg->uart_dev);
-
-	// uart_poll_out(cfg->uart_dev, '\0');
-	// LOG_DBG("Command sent.");
+	int32_t timeout_in_ms = CFG_M6E_NANO_SERIAL_TIMEOUT;
+	while (data->status != RESPONSE_SUCCESS) {
+		if (timeout_in_ms < 0) {
+			LOG_WRN("Command timeout.");
+			break;
+		}
+		timeout_in_ms -= 10;
+		k_msleep(10);
+	}
 }
 
 /**
@@ -398,68 +423,49 @@ const static struct m6e_nano_api api = {
 	.set_callback = user_set_command_callback,
 };
 
-/**
- * @brief Calculate the CRC of the command being transmitted.
- *
- * @param u8Buf Partial of the command to calculate the CRC for.
- * @param len Length of the partial command.
- * @return uint16_t CRC of the command. To be transmitted as the last two bytes of the command.
- */
-static uint16_t calculate_crc(uint8_t *u8Buf, uint8_t len)
-{
-	uint16_t crc = 0xFFFF;
-
-	for (uint8_t i = 0; i < len; i++) {
-		crc = ((crc << 4) | (u8Buf[i] >> 4)) ^ crc_table[crc >> 12];
-		crc = ((crc << 4) | (u8Buf[i] & 0x0F)) ^ crc_table[crc >> 12];
-	}
-
-	return crc;
-}
-
 uint8_t m6e_nano_get_status(const struct device *dev)
 {
 	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
 	return data->status;
 }
 
-/**
- * @brief Handler for when the UART peripheral becomes ready to transmit.
- *
- * @param dev UART peripheral device.
- */
-static void uart_cb_tx_handler(const struct device *dev)
-{
-	const struct m6e_nano_config *config = dev->config;
-	struct m6e_nano_data *drv_data = dev->data;
-	int sent = 0;
-	uint8_t retries = 3;
-	int count = 0;
-	LOG_DBG("len: %d", drv_data->command.len);
+// /**
+//  * @brief Handler for when the UART peripheral becomes ready to transmit.
+//  *
+//  * @param dev UART peripheral device.
+//  */
+// static void uart_cb_tx_handler(const struct device *dev)
+// {
+// 	const struct m6e_nano_config *config = dev->config;
+// 	struct m6e_nano_data *drv_data = dev->data;
+// 	int sent = 0;
+// 	uint8_t retries = 3;
+// 	int count = 0;
+// 	LOG_DBG("len: %d", drv_data->command.len);
 
-	while (drv_data->command.len) {
-		sent = uart_fifo_fill(config->uart_dev, &drv_data->command.data[sent],
-				      drv_data->command.len);
-		if (sent) {
-			count++;
-			LOG_DBG("count: %d", count);
-		}
-		drv_data->command.len -= sent;
-	}
+// 	while (drv_data->command.len) {
+// 		sent = uart_fifo_fill(config->uart_dev, &drv_data->command.data[sent],
+// 				      drv_data->command.len);
+// 		if (sent) {
+// 			count++;
+// 			LOG_DBG("count: %d", count);
+// 		}
+// 		drv_data->command.len -= sent;
+// 	}
 
-	LOG_DBG("new len: %d", drv_data->command.len);
+// 	LOG_DBG("new len: %d", drv_data->command.len);
 
-	while (retries--) {
-		if (uart_irq_tx_complete(config->uart_dev)) {
-			LOG_DBG("tx complete:");
+// 	while (retries--) {
+// 		if (uart_irq_tx_complete(config->uart_dev)) {
+// 			LOG_DBG("tx complete:");
 
-			uart_irq_tx_disable(config->uart_dev);
-			drv_data->command.len = 0;
-			uart_irq_rx_enable(config->uart_dev);
-			break;
-		}
-	}
-}
+// 			uart_irq_tx_disable(config->uart_dev);
+// 			drv_data->command.len = 0;
+// 			uart_irq_rx_enable(config->uart_dev);
+// 			break;
+// 		}
+// 	}
+// }
 
 /**
  * @brief Handler for when the UART peripheral receives data.
@@ -471,9 +477,8 @@ static void uart_cb_handler(const struct device *dev, void *user_data)
 {
 	const struct device *m6e_nano_dev = user_data;
 	struct m6e_nano_data *drv_data = m6e_nano_dev->data;
-	// struct m6e_nano_data *drv_data = dev->data;
 
-	int len, pkt_sz = 0;
+	int len = 0;
 	int offset = drv_data->response.len;
 	m6e_nano_callback_t callback = drv_data->callback;
 
@@ -486,6 +491,7 @@ static void uart_cb_handler(const struct device *dev, void *user_data)
 			case 0:
 				if (drv_data->response.data[offset] == TMR_START_HEADER) {
 					LOG_DBG("Msg Header: %X", drv_data->response.data[offset]);
+					drv_data->status = RESPONSE_PENDING;
 					break;
 				} else if (drv_data->response.data[offset] ==
 					   ERROR_COMMAND_RESPONSE_TIMEOUT) {
@@ -514,15 +520,12 @@ static void uart_cb_handler(const struct device *dev, void *user_data)
 
 	if (offset > drv_data->response.msg_len - 1) {
 		drv_data->response.len = 0;
-		// for (size_t i = 0; i < drv_data->response.msg_len; i++) {
-		// 	printk("[%X] ", drv_data->response.data[i]);
-		// }
 
-		drv_data->status = RESPONSE_PENDING;
+		drv_data->status = RESPONSE_SUCCESS;
 		if (callback != NULL) {
 			callback(dev, user_data);
 		}
-		LOG_DBG("Response received.");
+		LOG_DBG("Response success.");
 	} else if (offset > M6E_NANO_BUF_SIZE) {
 		drv_data->response.len = 0;
 		drv_data->status = RESPONSE_FAIL;

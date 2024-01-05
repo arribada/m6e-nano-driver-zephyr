@@ -33,8 +33,14 @@
 #define TMR_SR_OPCODE_SET_WRITE_TX_POWER         0x94
 #define TMR_SR_OPCODE_SET_USER_GPIO_OUTPUTS      0x96
 #define TMR_SR_OPCODE_SET_REGION                 0x97
+#define TMR_SR_OPCODE_SET_POWER_MODE             0x98
 #define TMR_SR_OPCODE_SET_READER_OPTIONAL_PARAMS 0x9A
 #define TMR_SR_OPCODE_SET_PROTOCOL_PARAM         0x9B
+
+#define TMR_SR_POWER_MODE_FULL     0x00
+#define TMR_SR_POWER_MODE_MIN_SAVE 0x01
+#define TMR_SR_POWER_MODE_MED_SAVE 0x02
+#define TMR_SR_POWER_MODE_MAX_SAVE 0x03
 
 #define COMMAND_TIME_OUT 2000 // Number of ms before stop waiting for response from module
 
@@ -65,10 +71,16 @@
 #define REGION_NORTHAMERICA 0x0D
 #define REGION_OPEN         0xFF
 
-static uint16_t crc_table[] = {
-	0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
-	0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef,
-};
+#define TMR_TAG_PROTOCOL_NONE             0x00
+#define TMR_TAG_PROTOCOL_ISO180006B       0x03
+#define TMR_TAG_PROTOCOL_GEN2             0x05
+#define TMR_TAG_PROTOCOL_ISO180006B_UCODE 0x06
+#define TMR_TAG_PROTOCOL_IPX64            0x07
+#define TMR_TAG_PROTOCOL_IPX256           0x08
+#define TMR_TAG_PROTOCOL_ATA              0x1D
+
+/* wait serial output with 1000ms timeout */
+#define CFG_M6E_NANO_SERIAL_TIMEOUT 1000
 
 // Set command to be transmitted
 typedef void (*m6e_nano_send_command_t)(const struct device *dev, const uint8_t *command,
@@ -137,8 +149,27 @@ struct m6e_nano_config {
 };
 
 static void user_send_command(const struct device *dev, uint8_t *command, const uint8_t length);
-static void m6e_nano_construct_command(const struct device *dev, uint8_t opcode, uint8_t *data,
-				       uint8_t size, uint16_t timeout);
-static uint16_t calculate_crc(uint8_t *u8Buf, uint8_t len);
+// static void m6e_nano_construct_command(const struct device *dev, uint8_t opcode, uint8_t *data,
+// 				       uint8_t size, uint16_t timeout);
+
+/* Library Functions */
+void m6e_nano_set_config(const struct device *dev, uint8_t option1, uint8_t option2);
+uint8_t m6e_nano_get_tag_epc_bytes(const struct device *dev);
+uint8_t m6e_nano_get_tag_rssi(const struct device *dev);
+uint16_t m6e_nano_get_tag_timestamp(const struct device *dev);
+uint32_t m6e_nano_get_tag_freq(const struct device *dev);
+uint8_t m6e_nano_parse_response(const struct device *dev);
+
+void m6e_nano_set_baud(const struct device *dev, long baud_rate);
+void m6e_nano_get_version(const struct device *dev);
+void m6e_nano_set_tag_protocol(const struct device *dev, uint8_t protocol);
+void m6e_nano_get_write_power(const struct device *dev);
+void m6e_nano_set_antenna_port(const struct device *dev);
+void m6e_nano_set_read_power(const struct device *dev, uint16_t power);
+void m6e_nano_set_power_mode(const struct device *dev, uint8_t mode);
+void m6e_nano_start_reading(const struct device *dev);
+void m6e_nano_set_region(const struct device *dev, uint8_t region);
+void m6e_nano_send_generic_command(const struct device *dev, uint8_t *command, uint8_t size,
+				   uint8_t opcode);
 
 #endif // M6E_NANO_PERIPHERAL_H
