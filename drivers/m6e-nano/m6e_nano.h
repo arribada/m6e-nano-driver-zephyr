@@ -134,7 +134,7 @@ struct m6e_nano_buf {
 
 struct m6e_nano_data {
 	bool debug;
-	u_int8_t status;
+	uint8_t status;
 	struct m6e_nano_buf command;
 	struct m6e_nano_buf response;
 	bool has_response;
