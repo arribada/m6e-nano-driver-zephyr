@@ -3,18 +3,33 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/uart.h>
 #include <app_version.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <m6e_nano.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
 
+#define TAG_TOTAL_LIMIT 100
+
 struct counter {
-	int strings;
-	int overflows;
+	char tags[TAG_TOTAL_LIMIT][(12 * 2) + 1];
+	uint32_t total;
 };
 
-static struct counter tracker = {0};
+static struct counter seen_tags = {
+	.total = 0,
+};
+
+void array_to_string(uint8_t *buf, char *str)
+{
+	char *ptr = &str[0];
+
+	for (int i = 0; i < 12; i++) {
+		ptr += sprintf(ptr, "%02X", buf[i]);
+	}
+}
 
 void read_callback(const struct device *dev, void *user_data)
 {
@@ -30,6 +45,7 @@ void read_callback(const struct device *dev, void *user_data)
 			break;
 		case RESPONSE_IS_KEEPALIVE:
 			res_str = "RESPONSE_IS_KEEPALIVE";
+			printk("Tag count: %d\n", seen_tags.total);
 			break;
 		case RESPONSE_IS_TAGFOUND:
 			res_str = "RESPONSE_IS_TAGFOUND";
@@ -42,18 +58,27 @@ void read_callback(const struct device *dev, void *user_data)
 				user_data); // Get the time (ms) since last keep-alive
 			uint8_t tagEPCBytes = m6e_nano_get_tag_epc_bytes(user_data);
 
-			printk("rssi: -%ddBm | freq: %ldHz | timestamp: %ldms\n", rssi, freq,
-			       timeStamp);
-
-			printk("EPC: [");
-			for (uint8_t x = 0; x < tagEPCBytes; x++) {
-				if (drv_data->response.data[31 + x] < 0x10) {
-					printk(" 0%X ", drv_data->response.data[31 + x]);
-				} else {
-					printk(" %X ", drv_data->response.data[31 + x]);
+			char new_tag_str[(12 * 2) + 1];
+			array_to_string(drv_data->response.data + 31, new_tag_str);
+			printk("Tag found: %s\n", new_tag_str);
+			printk("rssi: -%ddBm | freq: %ldHz | timestamp: %ldms | size %d\n", rssi,
+			       freq, timeStamp, tagEPCBytes);
+			int ret = 0;
+			for (size_t i = 0; i < seen_tags.total; i++) {
+				if (strcmp(seen_tags.tags[i], new_tag_str) == 0) {
+					printk("Tag already exists\n");
+					ret = 1;
 				}
 			}
-			printk("]\n");
+
+			if (ret == 1) {
+				break;
+			} else {
+				strcpy(seen_tags.tags[seen_tags.total], new_tag_str);
+				seen_tags.total++;
+				printk("Tag count: %d\n", seen_tags.total);
+			}
+
 			break;
 		case ERROR_UNKNOWN_OPCODE:
 			res_str = "ERROR_UNKNOWN_OPCODE";
@@ -95,5 +120,7 @@ int main(void)
 	LOG_INF("Start reading...");
 	m6e_nano_start_reading(dev);
 
-	m6e_nano_set_callback(dev, read_callback, &tracker);
+	m6e_nano_set_callback(dev, read_callback, &seen_tags);
+
+	return 0;
 }

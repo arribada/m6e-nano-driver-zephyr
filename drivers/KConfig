@@ -1,3 +1,2 @@
-menu "m6e-nano"
+# menu "m6e-nano"
 rsource "m6e-nano/Kconfig"
-endmenu

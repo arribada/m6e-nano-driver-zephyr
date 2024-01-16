@@ -168,6 +168,8 @@ void m6e_nano_set_antenna_port(const struct device *dev);
 void m6e_nano_set_read_power(const struct device *dev, uint16_t power);
 void m6e_nano_set_power_mode(const struct device *dev, uint8_t mode);
 void m6e_nano_start_reading(const struct device *dev);
+void m6e_nano_stop_reading(const struct device *dev);
+
 void m6e_nano_set_region(const struct device *dev, uint8_t region);
 void m6e_nano_send_generic_command(const struct device *dev, uint8_t *command, uint8_t size,
 				   uint8_t opcode);

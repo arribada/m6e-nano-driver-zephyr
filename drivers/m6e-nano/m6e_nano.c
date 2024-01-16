@@ -211,7 +211,7 @@ void m6e_nano_set_config(const struct device *dev, uint8_t option1, uint8_t opti
  *
  * @param dev UART peripheral device.
  */
-void m6e_nano_stop_read(const struct device *dev)
+void m6e_nano_stop_reading(const struct device *dev)
 {
 	uint8_t data[] = {0x00, 0x00, 0x02};
 

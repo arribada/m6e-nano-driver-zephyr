@@ -1,3 +1,1 @@
-menu "Driver for M6E Nano"
 rsource "drivers/Kconfig"
-endmenu

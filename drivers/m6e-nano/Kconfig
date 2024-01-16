@@ -1,4 +1,3 @@
-menu "M6E Nano UART Peripheral"
 config M6E_NANO
     bool "Enable m6e nano peripheral"
     depends on UART_INTERRUPT_DRIVEN
@@ -6,11 +5,11 @@ config M6E_NANO
 if M6E_NANO
 
     config M6E_NANO_DEFAULT_REGION
-        hex "Default region in (hex), see README for details"
+        hex "Default RF region in (hex), see README for details"
         default 0x08
         range 0x04 0xFF
         help
-            Sets the interal frequency determined by region for M6E Nano.
+            Sets the internal operating frequency determined by region for M6E Nano.
 
     config M6E_NANO_DEFAULT_POWER
         int "Default maximum transmission power level of 500 (5.00dBm)"
@@ -23,4 +22,3 @@ if M6E_NANO
     module-str = M6E Nano
     source "subsys/logging/Kconfig.template.log_config"
 endif
-endmenu
