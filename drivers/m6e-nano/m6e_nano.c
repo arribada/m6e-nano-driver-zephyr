@@ -7,11 +7,6 @@
 #define DT_DRV_COMPAT          thingmagic_m6enano
 #define M6E_NANO_INIT_PRIORITY 41
 
-/* sensor m6e_nano.c - Driver for plantower PMS7003 sensor
- * PMS7003 product: http://www.plantower.com/en/content/?110.html
- * PMS7003 spec: http://aqicn.org/air/view/sensor/spec/pms7003.pdf
- */
-
 #include <errno.h>
 
 #include <zephyr/init.h>
@@ -351,7 +346,7 @@ void m6e_nano_send_generic_command(const struct device *dev, uint8_t *command, u
  */
 static void user_send_command(const struct device *dev, uint8_t *command, const uint8_t length)
 {
-
+	int32_t timeout_in_ms = CFG_M6E_NANO_SERIAL_TIMEOUT;
 	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
 	const struct m6e_nano_config *cfg = dev->config;
 	struct m6e_nano_buf *tx = &data->command;
@@ -363,6 +358,16 @@ static void user_send_command(const struct device *dev, uint8_t *command, const 
 	LOG_DBG("Length of command: %d", tx->len);
 
 	__ASSERT(tx->len <= 255, "Command length too long.");
+
+	while (data->status == RESPONSE_STARTUP) {
+		if (timeout_in_ms < 0) {
+			LOG_WRN("Startup event missed...");
+			data->status = RESPONSE_CLEAR;
+			break;
+		}
+		timeout_in_ms -= 10;
+		k_msleep(10);
+	}
 
 	if (CONFIG_M6E_NANO_LOG_LEVEL >= LOG_LEVEL_DBG) {
 		for (size_t i = 0; i < length; i++) {
@@ -392,7 +397,6 @@ static void user_send_command(const struct device *dev, uint8_t *command, const 
 		uart_poll_out(cfg->uart_dev, tx->data[i]);
 	}
 
-	int32_t timeout_in_ms = CFG_M6E_NANO_SERIAL_TIMEOUT;
 	while (data->status != RESPONSE_SUCCESS) {
 		if (timeout_in_ms < 0) {
 			LOG_WRN("Command timeout.");
@@ -507,6 +511,10 @@ static void uart_cb_handler(const struct device *dev, void *user_data)
 				break;
 			case 2:
 				LOG_DBG("Msg Opcode: %x", drv_data->response.data[offset]);
+				if (drv_data->response.data[offset] == TMR_SR_OPCODE_VERSION_STARTUP)
+				{
+					drv_data->status = RESPONSE_CLEAR;
+				};
 				break;
 			default:
 				break;
@@ -644,11 +652,15 @@ static int m6e_nano_init(const struct device *dev)
 		drv_data->debug = true;
 	}
 
+	while (uart_irq_rx_ready(cfg->uart_dev))
+	{
+		m6e_nano_uart_flush(cfg->uart_dev);
+	}
+
 	// flush the uart rx buffer
-	m6e_nano_uart_flush(cfg->uart_dev);
 	struct m6e_nano_buf *rx = &drv_data->response;
 	rx->len = 0;
-	drv_data->status = RESPONSE_CLEAR;
+	drv_data->status = RESPONSE_STARTUP;
 
 	uart_irq_callback_user_data_set(cfg->uart_dev, uart_cb_handler, (void *)dev);
 	uart_irq_rx_enable(cfg->uart_dev);
