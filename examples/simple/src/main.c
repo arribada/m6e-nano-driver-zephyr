@@ -96,7 +96,11 @@ int main(void)
 {
 	const struct device *dev = DEVICE_DT_GET_ONE(thingmagic_m6enano);
 
+
+	m6e_nano_stop_reading(dev);
+
 	LOG_INF("Setting baud rate...");
+
 	m6e_nano_set_baud(dev, 115200);
 
 	LOG_INF("Requesting hardware version...");
@@ -122,5 +126,5 @@ int main(void)
 
 	m6e_nano_set_callback(dev, read_callback, &seen_tags);
 
-	return 0;
+	// return 0;
 }

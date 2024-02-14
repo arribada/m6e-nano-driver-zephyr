@@ -491,37 +491,40 @@ static void uart_cb_handler(const struct device *dev, void *user_data)
 
 			len = uart_fifo_read(dev, &drv_data->response.data[offset], 255 - offset);
 
-			switch (offset) {
-			case 0:
-				if (drv_data->response.data[offset] == TMR_START_HEADER) {
-					LOG_DBG("Msg Header: %X", drv_data->response.data[offset]);
-					drv_data->status = RESPONSE_PENDING;
+			while(len > 0) {
+				switch (offset) {
+				case 0:
+					if (drv_data->response.data[offset] == TMR_START_HEADER) {
+						LOG_DBG("Msg Header: %X", drv_data->response.data[offset]);
+						drv_data->status = RESPONSE_PENDING;
+						break;
+					} else if (drv_data->response.data[offset] ==
+						ERROR_COMMAND_RESPONSE_TIMEOUT) {
+						LOG_WRN("COMMAND RESPONSE TIMEOUT");
+						drv_data->status = ERROR_COMMAND_RESPONSE_TIMEOUT;
+					}
+					len = 0;
+					offset = 0;
 					break;
-				} else if (drv_data->response.data[offset] ==
-					   ERROR_COMMAND_RESPONSE_TIMEOUT) {
-					LOG_WRN("COMMAND RESPONSE TIMEOUT");
-					drv_data->status = ERROR_COMMAND_RESPONSE_TIMEOUT;
+				case 1:
+					drv_data->response.msg_len = drv_data->response.data[offset] + 7;
+					LOG_DBG("Msg Total Len: %d", drv_data->response.msg_len);
+					break;
+				case 2:
+					LOG_DBG("Msg Opcode: %x", drv_data->response.data[offset]);
+					if (drv_data->response.data[offset] == TMR_SR_OPCODE_VERSION_STARTUP)
+					{
+						drv_data->status = RESPONSE_CLEAR;
+					};
+					break;
+				default:
+					break;
 				}
-				len = 0;
-				offset = 0;
-				break;
-			case 1:
-				drv_data->response.msg_len = drv_data->response.data[offset] + 7;
-				LOG_DBG("Msg Total Len: %d", drv_data->response.msg_len);
-				break;
-			case 2:
-				LOG_DBG("Msg Opcode: %x", drv_data->response.data[offset]);
-				if (drv_data->response.data[offset] == TMR_SR_OPCODE_VERSION_STARTUP)
-				{
-					drv_data->status = RESPONSE_CLEAR;
-				};
-				break;
-			default:
-				break;
-			}
 
-			offset += len;
-			drv_data->response.len = offset;
+				offset++;
+				len--;
+				drv_data->response.len = offset;
+			}
 			break;
 		}
 	}
