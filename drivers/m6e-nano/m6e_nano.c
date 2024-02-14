@@ -210,7 +210,7 @@ void m6e_nano_stop_reading(const struct device *dev)
 {
 	uint8_t data[] = {0x00, 0x00, 0x02};
 
-	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_BAUD_RATE, data, sizeof(data),
+	m6e_nano_construct_command(dev, TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, data, sizeof(data),
 				   COMMAND_TIME_OUT);
 }
 
