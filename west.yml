@@ -21,6 +21,7 @@ manifest:
           - hal_rpi_pico
           - hal_nordic # required by the custom_plank board (Nordic based)
           - hal_stm32 # required by the nucleo_f302r8 board (STM32 based)
+          - hal_espressif # required by the esp32 board
 
   self:
     path: m6e-nano-driver-zephyr
