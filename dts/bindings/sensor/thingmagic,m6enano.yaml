@@ -1,6 +1,5 @@
 description: |
-  UART peripheral example. Transmits data over uart on button press
-  and accumulates received data as strings.
+  M6E Nano Serial RFID reader. UHF RFID tag reader over serial.
 
 compatible: "thingmagic,m6enano"
 
