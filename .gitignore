@@ -9,3 +9,7 @@ zephyr
 build
 twister-out
 .west
+
+# Docs
+docs/html/*
+docs/latex/*
