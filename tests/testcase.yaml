@@ -1,7 +1,5 @@
 tests:
-  drivers.sensor.m6e_nano.framework_tests:
-    tags:
-      - drivers
-      - sensor
-      - subsys
-    platform_allow: rpi_pico
+  codec_tests.test_encoding_of_sensor_data:
+    platform_allow:
+      - swan_r5
+    tags: driver

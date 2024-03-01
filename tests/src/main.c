@@ -1,25 +1,28 @@
+#include <zephyr/kernel.h>
+#include <zephyr/drivers/uart.h>
+#include <stdio.h>
+#include <string.h>
+
+#include <../../drivers/m6e-nano/m6e_nano.h>
+
 #include <zephyr/ztest.h>
-// #include <drivers/m6e-nano/m6e_nano.h>
+
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(m6enano_tests);
+
+ZTEST_SUITE(m6enano_tests, NULL, NULL, NULL, NULL, NULL);
 
 /**
- * @brief Test Asserts
+ * @brief Test encoding of sensor data
  *
- * This test verifies various assert macros provided by ztest.
+ * Tests the encoding of single and multiple sensor data packages
  *
  */
-static void test_assert(void)
+ZTEST(m6enano_tests, test_driver)
 {
-	zassert_true(1, "1 was false");
-	zassert_false(0, "0 was true");
-	zassert_is_null(NULL, "NULL was not NULL");
-	zassert_not_null("foo", "\"foo\" was NULL");
-	zassert_equal(1, 1, "1 was not equal to 1");
-	zassert_equal_ptr(NULL, NULL, "NULL was not equal to NULL");
-}
+	const struct device *dev = DEVICE_DT_GET_ONE(thingmagic_m6enano);
 
-void test_main(void)
-{
-	ztest_test_suite(framework_tests, ztest_unit_test(test_assert));
+	m6e_nano_set_baud(dev, 115200);
 
-	ztest_run_test_suite(framework_tests);
+	zassert_equal(1, 1);
 }

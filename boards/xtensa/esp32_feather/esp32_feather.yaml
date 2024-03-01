@@ -1,5 +1,5 @@
-identifier: esp32_devkitc_wroom
-name: ESP32-DevkitC-WROOM-32D
+identifier: esp32_feather
+name: ESP32-Feather-HUZZAH32
 type: mcu
 arch: xtensa
 toolchain:

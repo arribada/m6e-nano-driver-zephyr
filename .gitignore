@@ -7,7 +7,7 @@
 # Zephyr
 zephyr
 build
-twister-out
+twister-out*/
 .west
 
 # Docs

@@ -12,7 +12,7 @@
 
 // Op codes for M6E Nano
 #define TMR_SR_OPCODE_VERSION                    0x03
-#define TMR_SR_OPCODE_VERSION_STARTUP			 0x04
+#define TMR_SR_OPCODE_VERSION_STARTUP            0x04
 #define TMR_SR_OPCODE_SET_BAUD_RATE              0x06
 #define TMR_SR_OPCODE_READ_TAG_ID_SINGLE         0x21
 #define TMR_SR_OPCODE_READ_TAG_ID_MULTIPLE       0x22
@@ -62,7 +62,7 @@
 #define RESPONSE_SUCCESS               11
 #define RESPONSE_FAIL                  12
 #define RESPONSE_CLEAR                 13
-#define RESPONSE_STARTUP			   14
+#define RESPONSE_STARTUP               14
 
 // Define the allowed regions - these set the internal freq of the module
 #define REGION_INDIA        0x04
@@ -88,7 +88,7 @@
 #define CFG_M6E_NANO_SERIAL_TIMEOUT 1000
 
 // Set command to be transmitted
-typedef void (*m6e_nano_send_command_t)(const struct device *dev, const uint8_t *command,
+typedef void (*m6e_nano_send_command_t)(const struct device *dev, uint8_t *command,
 					const uint8_t length);
 
 // Callback
@@ -110,7 +110,7 @@ struct m6e_nano_api {
  * @param command Command to be transmitted.
  * @param length Length of the command (excluding null byte).
  */
-static inline void m6e_nano_send_command(const struct device *dev, const uint8_t *command,
+static inline void m6e_nano_send_command(const struct device *dev, uint8_t *command,
 					 const uint8_t length)
 {
 	struct m6e_nano_api *api = (struct m6e_nano_api *)dev->api;
@@ -153,27 +153,148 @@ struct m6e_nano_config {
 	const struct device *uart_dev;
 };
 
-static void user_send_command(const struct device *dev, uint8_t *command, const uint8_t length);
+/**
+ * @brief Set the command to be transmitted by the UART peripheral.
+ *
+ * @param dev UART peripheral device.
+ * @param command Command to be transmitted.
+ * @param length Length of the command.
+ */
+void user_send_command(const struct device *dev, uint8_t *command, const uint8_t length);
 
 /* Library Functions */
+/**
+ * @brief Retrieve the number of bytes from EPC.
+ *
+ * @param dev UART peripheral device.
+ * @return uint8_t Number of bytes from EPC.
+ */
 uint8_t m6e_nano_get_tag_epc_bytes(const struct device *dev);
-uint8_t m6e_nano_get_tag_rssi(const struct device *dev);
-uint16_t m6e_nano_get_tag_timestamp(const struct device *dev);
-uint32_t m6e_nano_get_tag_freq(const struct device *dev);
-uint8_t m6e_nano_parse_response(const struct device *dev);
 
-void m6e_nano_set_config(const struct device *dev, uint8_t option1, uint8_t option2);
-void m6e_nano_set_baud(const struct device *dev, long baud_rate);
-void m6e_nano_get_version(const struct device *dev);
-void m6e_nano_set_tag_protocol(const struct device *dev, uint8_t protocol);
-void m6e_nano_get_write_power(const struct device *dev);
-void m6e_nano_set_antenna_port(const struct device *dev);
-void m6e_nano_set_read_power(const struct device *dev, uint16_t power);
-void m6e_nano_set_power_mode(const struct device *dev, uint8_t mode);
-void m6e_nano_start_reading(const struct device *dev);
+/**
+ * @brief Retrieve the RSSI of the tag.
+ *
+ * @param dev UART peripheral device.
+ * @return uint8_t RSSI of the tag.
+ */
+uint8_t m6e_nano_get_tag_rssi(const struct device *dev);
+
+/**
+ * @brief Retrieve the timestamp of the tag.
+ *
+ * @param dev UART peripheral device.
+ * @return uint16_t Timestamp of the tag.
+ */
+uint16_t m6e_nano_get_tag_timestamp(const struct device *dev);
+
+/**
+ * @brief Retrieve the frequency of the tag.
+ *
+ * @param dev UART peripheral device.
+ * @return uint32_t Frequency of the tag.
+ */
+uint32_t m6e_nano_get_tag_freq(const struct device *dev);
+
+/**
+ * @brief Disable the read filter.
+ *
+ * @param dev UART peripheral device.
+ */
+void m6e_nano_disable_read_filter(const struct device *dev);
+
+/**
+ * @brief Stop a continuous read operation.
+ *
+ * @param dev UART peripheral device.
+ */
 void m6e_nano_stop_reading(const struct device *dev);
+
+/**
+ * @brief Set the power mode of the M6E Nano.
+ *
+ * @param dev UART peripheral device.
+ * @param mode Power mode to set. See docs for valid modes.
+ */
+void m6e_nano_set_power_mode(const struct device *dev, uint8_t mode);
+
+/**
+ * @brief Set the antenna port of the M6E Nano.
+ *
+ * @param dev UART peripheral device.
+ */
+void m6e_nano_set_antenna_port(const struct device *dev);
+
+/**
+ * @brief Set the read power of the M6E Nano.
+ *
+ * @param dev UART peripheral device.
+ * @param power Power to set. Between 0 and 27dBm.
+ */
+void m6e_nano_set_read_power(const struct device *dev, uint16_t power);
+
+/**
+ * @brief Start a continuous read operation.
+ *
+ * @param dev UART peripheral device.
+ */
+void m6e_nano_start_reading(const struct device *dev);
+
+/**
+ * @brief Set the operating region of the M6E Nano. This controls the transmission frequency of the
+ * RFID reader.
+ *
+ * @param dev UART peripheral device.
+ * @param region Operating region to set.
+ */
 void m6e_nano_set_region(const struct device *dev, uint8_t region);
+
+/**
+ * @brief Retrieve the firmware version of the M6E Nano.
+ *
+ * @param dev UART peripheral device.
+ */
+void m6e_nano_get_version(const struct device *dev);
+
+/**
+ * @brief Set the tag protocol of the M6E Nano.
+ *
+ * @param dev UART peripheral device.
+ * @param protocol Tag protocol to set.
+ */
+void m6e_nano_set_tag_protocol(const struct device *dev, uint8_t protocol);
+
+/**
+ * @brief Retrieve the write power of the M6E Nano.
+ *
+ * @param dev UART peripheral device.
+ */
+void m6e_nano_get_write_power(const struct device *dev);
+
+/**
+ * @brief Set the baudrate of the M6E Nano.
+ *
+ * @param dev UART peripheral device.
+ * @param baud_rate baudrate to set.
+ */
+void m6e_nano_set_baud(const struct device *dev, long baud_rate);
+
+/**
+ * @brief Send a generic command to the M6E Nano.
+ *
+ * @param dev UART peripheral device.
+ * @param command Command to be sent.
+ * @param size Size of command.
+ * @param opcode Opcode to be packed.
+ */
 void m6e_nano_send_generic_command(const struct device *dev, uint8_t *command, uint8_t size,
 				   uint8_t opcode);
+
+/**
+ * @brief Parse the tag response from the M6E Nano.
+ *
+ * @param dev UART peripheral device.
+ * @return uint8_t Status of the response.
+ */
+uint8_t m6e_nano_parse_response(const struct device *dev);
 
 #endif // M6E_NANO_PERIPHERAL_H

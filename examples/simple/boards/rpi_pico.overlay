@@ -1,7 +1,6 @@
-&uart0 {
+&uart1 {
     status = "okay";
     current-speed = <115200>;
-    pinctrl-names = "default";
 
     m6enano {
         compatible = "thingmagic,m6enano";

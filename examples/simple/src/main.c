@@ -96,7 +96,6 @@ int main(void)
 {
 	const struct device *dev = DEVICE_DT_GET_ONE(thingmagic_m6enano);
 
-
 	m6e_nano_stop_reading(dev);
 
 	LOG_INF("Setting baud rate...");
