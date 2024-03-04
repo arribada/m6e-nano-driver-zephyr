@@ -5,7 +5,7 @@
  */
 
 #define DT_DRV_COMPAT          thingmagic_m6enano
-#define M6E_NANO_INIT_PRIORITY 41
+#define M6E_NANO_INIT_PRIORITY 60
 
 #include <errno.h>
 
@@ -163,15 +163,23 @@ static void uart_rx_handler(const struct device *dev, void *user_data)
 	struct m6e_nano_data *drv_data = m6e_nano_dev->data;
 
 	int len = 0;
-	int offset = drv_data->response.len;
+    int offset = 0;
+    
+    if(drv_data->status == RESPONSE_CLEAR) {
+        drv_data->response.len = 0;
+    }
+
+    offset = drv_data->response.len;
 	m6e_nano_callback_t callback = drv_data->callback;
 
 	if ((uart_irq_update(dev) > 0) && (uart_irq_is_pending(dev) > 0)) {
 		while (uart_irq_rx_ready(dev)) {
 
 			len = uart_fifo_read(dev, &drv_data->response.data[offset], 255 - offset);
+            LOG_DBG("Received %d bytes", len);
 
 			while (len > 0) {
+                LOG_DBG("Data: %X | Offset: %d", drv_data->response.data[offset], offset);
 				switch (offset) {
 				case 0:
 					if (drv_data->response.data[offset] == TMR_START_HEADER) {
@@ -290,6 +298,7 @@ void user_send_command(const struct device *dev, uint8_t *command, const uint8_t
 	while (data->status != RESPONSE_SUCCESS) {
 		if (timeout_in_ms < 0) {
 			LOG_WRN("Command timeout.");
+            data->status = RESPONSE_CLEAR;
 			break;
 		}
 		timeout_in_ms -= 10;
