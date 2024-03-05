@@ -14,14 +14,15 @@ manifest:
       path: zephyr
       revision: v3.5.0
       import:
-        # By using name-allowlist we can clone only the modules that are
-        # strictly needed by the application.
         name-allowlist:
           - cmsis # required by the ARM port
           - hal_rpi_pico
-          - hal_nordic # required by the custom_plank board (Nordic based)
-          - hal_stm32 # required by the nucleo_f302r8 board (STM32 based)
-          - hal_espressif # required by the esp32 board
+          - hal_stm32 
+          - hal_espressif
+    - name: arribada-custom-boards
+      path: deps/custom-boards
+      revision: v3.5.0
+      url: https://github.com/arribada/custom-boards-zephyr
 
   self:
     path: m6e-nano-driver-zephyr
