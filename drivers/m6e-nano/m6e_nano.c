@@ -13,6 +13,7 @@
 #include <zephyr/kernel.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/logging/log.h>
 
@@ -83,8 +84,8 @@ static void m6e_nano_uart_flush(const struct device *dev)
  * @param dev UART peripheral device.
  * @param region region to set.
  */
-static void m6e_nano_construct_command(const struct device *dev, uint8_t opcode, uint8_t *data,
-				       uint8_t size, uint16_t timeout)
+static int m6e_nano_construct_command(const struct device *dev, uint8_t opcode, uint8_t *data,
+				       uint8_t size, bool timeout)
 {
 	uint8_t command[size + 5];
 	command[0] = TMR_START_HEADER;
@@ -104,7 +105,7 @@ static void m6e_nano_construct_command(const struct device *dev, uint8_t opcode,
 
 	size_t length = sizeof(command) / sizeof(*command);
 
-	user_send_command(dev, command, length); // Send and wait for response
+	return user_send_command(dev, command, length, timeout); // Send and wait for response
 }
 
 /**
@@ -125,7 +126,7 @@ static void _m6e_nano_set_config(const struct device *dev, uint8_t option1, uint
 	data[2] = option2;
 
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_READER_OPTIONAL_PARAMS, data,
-				   sizeof(data), COMMAND_TIME_OUT);
+				   sizeof(data), true);
 }
 
 /**
@@ -155,11 +156,11 @@ static uint8_t _get_tag_data_bytes(const struct device *dev)
  * @brief Handler for when the UART peripheral receives data.
  *
  * @param dev UART peripheral device.
- * @param user_data Driver device passed to provide access to buffers.
+ * @param dev_m6e Driver device passed to provide access to buffers.
  */
-static void uart_rx_handler(const struct device *dev, void *user_data)
+static void uart_rx_handler(const struct device *dev, void *dev_m6e)
 {
-	const struct device *m6e_nano_dev = user_data;
+	const struct device *m6e_nano_dev = dev_m6e;
 	struct m6e_nano_data *drv_data = m6e_nano_dev->data;
 
 	int len = 0;
@@ -189,7 +190,6 @@ static void uart_rx_handler(const struct device *dev, void *user_data)
 						break;
 					} else if (drv_data->response.data[offset] ==
 						   ERROR_COMMAND_RESPONSE_TIMEOUT) {
-						LOG_WRN("COMMAND RESPONSE TIMEOUT");
 						drv_data->status = ERROR_COMMAND_RESPONSE_TIMEOUT;
 					}
 					len = 0;
@@ -215,24 +215,27 @@ static void uart_rx_handler(const struct device *dev, void *user_data)
 				len--;
 				drv_data->response.len = offset;
 			}
-			break;
 		}
 	}
 
 	if (offset > drv_data->response.msg_len - 1) {
 		drv_data->response.len = 0;
-
 		drv_data->status = RESPONSE_SUCCESS;
-		if (callback != NULL) {
-			callback(dev, user_data);
-		}
 		LOG_DBG("Response success.");
+        if (callback != NULL) {
+			callback(dev, dev_m6e);
+		}
 	} else if (offset > M6E_NANO_BUF_SIZE) {
 		drv_data->response.len = 0;
 		drv_data->status = RESPONSE_FAIL;
-		m6e_nano_uart_flush(dev); // Flush the buffer on overflow
+		m6e_nano_uart_flush(dev);
 		LOG_WRN("Response exceeds buffer, %d.", offset);
-	}
+	} else if (drv_data->status == ERROR_COMMAND_RESPONSE_TIMEOUT) {
+        drv_data->response.len = 0;
+        drv_data->status = RESPONSE_FAIL;
+        m6e_nano_uart_flush(dev);
+        LOG_WRN("Command response timeout.");
+    }
 }
 
 /**
@@ -241,8 +244,9 @@ static void uart_rx_handler(const struct device *dev, void *user_data)
  * @param dev UART peripheral device.
  * @param command Command to be transmitted.
  * @param length Length of the command.
+ * @return int32_t Status of the response.
  */
-void user_send_command(const struct device *dev, uint8_t *command, const uint8_t length)
+int user_send_command(const struct device *dev, uint8_t *command, const uint8_t length, const bool timeout)
 {
 	int32_t timeout_in_ms = CFG_M6E_NANO_SERIAL_TIMEOUT;
 	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
@@ -259,7 +263,7 @@ void user_send_command(const struct device *dev, uint8_t *command, const uint8_t
 
 	while (data->status == RESPONSE_STARTUP) {
 		if (timeout_in_ms < 0) {
-			LOG_WRN("Startup event missed...");
+			LOG_DBG("Startup event missed...");
 			data->status = RESPONSE_CLEAR;
 			break;
 		}
@@ -295,15 +299,19 @@ void user_send_command(const struct device *dev, uint8_t *command, const uint8_t
 		uart_poll_out(cfg->uart_dev, tx->data[i]);
 	}
 
-	while (data->status != RESPONSE_SUCCESS) {
-		if (timeout_in_ms < 0) {
-			LOG_WRN("Command timeout.");
-            data->status = RESPONSE_CLEAR;
-			break;
-		}
-		timeout_in_ms -= 10;
-		k_msleep(10);
-	}
+    if(timeout) {
+        while (data->status != RESPONSE_SUCCESS) {
+            if (timeout_in_ms < 0) {
+                LOG_WRN("Command timeout.");
+                data->status = RESPONSE_CLEAR;
+                return -ETIMEDOUT;
+            }
+            timeout_in_ms -= 10;
+            k_msleep(10);
+        }
+        return 0;
+    }
+    return 0;
 }
 
 /**
@@ -396,13 +404,14 @@ void m6e_nano_disable_read_filter(const struct device *dev)
  * @brief Stop a continuous read operation.
  *
  * @param dev UART peripheral device.
+ * @brief Stop a continuous read operation. No timeout required.
  */
 void m6e_nano_stop_reading(const struct device *dev)
 {
 	uint8_t data[] = {0x00, 0x00, 0x02};
 
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, data, sizeof(data),
-				   COMMAND_TIME_OUT);
+				   false);
 }
 
 /**
@@ -415,7 +424,7 @@ void m6e_nano_set_power_mode(const struct device *dev, uint8_t mode)
 {
 	uint8_t data[1] = {mode};
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_POWER_MODE, data, sizeof(data),
-				   COMMAND_TIME_OUT);
+				   true);
 }
 
 /**
@@ -427,7 +436,7 @@ void m6e_nano_set_antenna_port(const struct device *dev)
 {
 	uint8_t data[2] = {0x01, 0x01};
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_ANTENNA_PORT, data, sizeof(data),
-				   COMMAND_TIME_OUT);
+				   true);
 }
 
 /**
@@ -450,7 +459,7 @@ void m6e_nano_set_read_power(const struct device *dev, uint16_t power)
 	}
 
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_READ_TX_POWER, data, size,
-				   COMMAND_TIME_OUT);
+				   true);
 }
 
 /**
@@ -474,7 +483,7 @@ SETU8(newMsg, i, (uint8_t)TMR_TAG_PROTOCOL_GEN2); // protocol ID
 */
 
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, data, sizeof(data),
-				   COMMAND_TIME_OUT);
+				   true);
 }
 
 /**
@@ -488,7 +497,7 @@ void m6e_nano_set_region(const struct device *dev, uint8_t region)
 {
 
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_REGION, &region, sizeof(region),
-				   COMMAND_TIME_OUT);
+				   true);
 }
 
 /**
@@ -496,12 +505,12 @@ void m6e_nano_set_region(const struct device *dev, uint8_t region)
  *
  * @param dev UART peripheral device.
  */
-void m6e_nano_get_version(const struct device *dev)
+int m6e_nano_get_version(const struct device *dev)
 {
 	uint8_t data[] = {};
 
-	m6e_nano_construct_command(dev, TMR_SR_OPCODE_VERSION, data, sizeof(data),
-				   COMMAND_TIME_OUT);
+	return m6e_nano_construct_command(dev, TMR_SR_OPCODE_VERSION, data, sizeof(data),
+				   true);
 }
 
 /**
@@ -517,7 +526,7 @@ void m6e_nano_set_tag_protocol(const struct device *dev, uint8_t protocol)
 	data[1] = protocol;
 
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_TAG_PROTOCOL, data, sizeof(data),
-				   COMMAND_TIME_OUT);
+				   true);
 }
 
 /**
@@ -531,7 +540,7 @@ void m6e_nano_get_write_power(const struct device *dev)
 	// uint8_t data[] = {0x01}; // Return power with limits
 
 	m6e_nano_construct_command(dev, TMR_SR_OPCODE_GET_WRITE_TX_POWER, data, sizeof(data),
-				   COMMAND_TIME_OUT);
+				   true);
 }
 
 /**
@@ -550,7 +559,7 @@ void m6e_nano_set_baud(const struct device *dev, long baud_rate)
 
 	LOG_DBG("Baud rate: %ld", baud_rate);
 
-	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_BAUD_RATE, data, size, COMMAND_TIME_OUT);
+	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_BAUD_RATE, data, size, true);
 }
 
 /**
@@ -562,7 +571,7 @@ void m6e_nano_set_baud(const struct device *dev, long baud_rate)
 void m6e_nano_send_generic_command(const struct device *dev, uint8_t *command, uint8_t size,
 				   uint8_t opcode)
 {
-	m6e_nano_construct_command(dev, opcode, command, size, COMMAND_TIME_OUT);
+	m6e_nano_construct_command(dev, opcode, command, size, true);
 }
 
 uint8_t m6e_nano_get_status(const struct device *dev)
@@ -679,7 +688,7 @@ static int m6e_nano_init(const struct device *dev)
 }
 
 const static struct m6e_nano_api api = {
-	.send_command = user_send_command,
+	// .send_command = user_send_command,
 	.set_callback = user_set_command_callback,
 };
 

@@ -125,5 +125,8 @@ int main(void)
 
 	m6e_nano_set_callback(dev, read_callback, &seen_tags);
 
-	// return 0;
+	return 0;
 }
+
+// Headers      Status     Bootloader 
+// hFF h14 h03 | h00 h00 | h14 h12 h08 h00 h30 | h00 h00 h02 h20 h22 h08 | h04 h01 h0B h01 h25 h00 h00 h00 h10 | h79 h62 

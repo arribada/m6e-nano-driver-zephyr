@@ -88,8 +88,8 @@
 #define CFG_M6E_NANO_SERIAL_TIMEOUT 1000
 
 // Set command to be transmitted
-typedef void (*m6e_nano_send_command_t)(const struct device *dev, uint8_t *command,
-					const uint8_t length);
+typedef int (*m6e_nano_send_command_t)(const struct device *dev, uint8_t *command,
+					const uint8_t length, bool timeout);
 
 // Callback
 typedef void (*m6e_nano_callback_t)(const struct device *dev, void *user_data);
@@ -99,7 +99,7 @@ typedef void (*m6e_nano_set_callback_t)(const struct device *dev, m6e_nano_callb
 					void *user_data);
 
 struct m6e_nano_api {
-	m6e_nano_send_command_t send_command;
+	// m6e_nano_send_command_t send_command;
 	m6e_nano_set_callback_t set_callback;
 };
 
@@ -110,12 +110,12 @@ struct m6e_nano_api {
  * @param command Command to be transmitted.
  * @param length Length of the command (excluding null byte).
  */
-static inline void m6e_nano_send_command(const struct device *dev, uint8_t *command,
-					 const uint8_t length)
-{
-	struct m6e_nano_api *api = (struct m6e_nano_api *)dev->api;
-	return api->send_command(dev, command, length);
-}
+// static inline void m6e_nano_send_command(const struct device *dev, uint8_t *command,
+// 					 const uint8_t length, bool timeout)
+// {
+// 	struct m6e_nano_api *api = (struct m6e_nano_api *)dev->api;
+// 	return api->send_command(dev, command, length, timeout);
+// }
 
 /**
  * @brief Set the data callback function for the device
@@ -159,8 +159,10 @@ struct m6e_nano_config {
  * @param dev UART peripheral device.
  * @param command Command to be transmitted.
  * @param length Length of the command.
+ * @param timeout Whether to wait for a response from the module.
+ * @return int Status of the command.
  */
-void user_send_command(const struct device *dev, uint8_t *command, const uint8_t length);
+int user_send_command(const struct device *dev, uint8_t *command, const uint8_t length, const bool timeout);
 
 /* Library Functions */
 /**
@@ -253,7 +255,7 @@ void m6e_nano_set_region(const struct device *dev, uint8_t region);
  *
  * @param dev UART peripheral device.
  */
-void m6e_nano_get_version(const struct device *dev);
+int m6e_nano_get_version(const struct device *dev);
 
 /**
  * @brief Set the tag protocol of the M6E Nano.

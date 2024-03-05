@@ -21,7 +21,7 @@ docs:
 	$(DOC_GENERATOR) $(DOC_SRC_DIR)/doxygen.config
 
 test:
-	west
+	west twister --device-testing --device-serial /dev/ttyACM0 -p swan_r5  -T tests/integration --integration
 
 # Target to clean the generated documentation
 clean:

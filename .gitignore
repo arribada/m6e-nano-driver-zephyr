@@ -13,3 +13,8 @@ twister-out*/
 # Docs
 docs/html/*
 docs/latex/*
+
+# Testing
+.pytest_cache
+__pycache__
+.vscode*

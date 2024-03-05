@@ -1,0 +1,22 @@
+tests:
+  sample.pytest.shell:
+    filter: CONFIG_SERIAL and dt_chosen_enabled("zephyr,shell-uart")
+    min_ram: 40
+    harness: pytest
+    harness_config:
+      pytest_args: ['--html=twister-out/pytest-report.html', '--self-contained-html']
+    extra_configs:
+      - arch:posix:CONFIG_NATIVE_UART_0_ON_STDINOUT=y
+    platform_allow:
+      - native_sim
+      - swan_r5
+    integration_platforms:
+      - native_sim
+      - swan_r5
+    tags:
+      - test_framework
+      - pytest
+      - shell
+
+
+      # --device-testing --device-serial /dev/ttyACM0 -p swan_r5  -T tests/integration 
