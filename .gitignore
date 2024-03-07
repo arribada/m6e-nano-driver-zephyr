@@ -5,7 +5,7 @@
 .DS_Store
 
 # Zephyr
-zephyr
+!zephyr/module.yml
 build
 twister-out*/
 .west

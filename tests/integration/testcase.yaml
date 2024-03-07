@@ -17,6 +17,3 @@ tests:
       - test_framework
       - pytest
       - shell
-
-
-      # --device-testing --device-serial /dev/ttyACM0 -p swan_r5  -T tests/integration 
