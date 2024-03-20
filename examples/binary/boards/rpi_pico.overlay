@@ -1,0 +1,8 @@
+&uart1 {
+    status = "okay";
+    current-speed = <115200>;
+
+    m6enano {
+        compatible = "thingmagic,m6enano";
+    };
+};
