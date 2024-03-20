@@ -71,8 +71,9 @@ static void m6e_nano_uart_flush(const struct device *dev)
 	struct m6e_nano_data *drv_data = dev->data;
 	uint8_t buf;
 
-	while (uart_fifo_read(dev, &buf, 1) > 0)
+	while (uart_fifo_read(dev, &buf, 1) > 0) {
 		;
+	}
 	memset(&drv_data->response.data, 0, M6E_NANO_BUF_SIZE);
 
 	LOG_DBG("UART RX buffer flushed.");
@@ -85,7 +86,7 @@ static void m6e_nano_uart_flush(const struct device *dev)
  * @param region region to set.
  */
 static int m6e_nano_construct_command(const struct device *dev, uint8_t opcode, uint8_t *data,
-				       uint8_t size, bool timeout)
+				      uint8_t size, bool timeout)
 {
 	uint8_t command[size + 5];
 	command[0] = TMR_START_HEADER;
@@ -164,36 +165,34 @@ static void uart_rx_handler(const struct device *dev, void *dev_m6e)
 	struct m6e_nano_data *drv_data = m6e_nano_dev->data;
 
 	int len = 0;
-    int offset = 0;
-    
-    if(drv_data->status == RESPONSE_CLEAR) {
-        drv_data->response.len = 0;
-    }
+	int offset = 0;
 
-    offset = drv_data->response.len;
+	if (drv_data->status == RESPONSE_CLEAR) {
+		drv_data->response.len = 0;
+	}
+
+	offset = drv_data->response.len;
 	m6e_nano_callback_t callback = drv_data->callback;
 
 	if ((uart_irq_update(dev) > 0) && (uart_irq_is_pending(dev) > 0)) {
 		while (uart_irq_rx_ready(dev)) {
 
 			len = uart_fifo_read(dev, &drv_data->response.data[offset], 255 - offset);
-            LOG_DBG("Received %d bytes", len);
+			LOG_DBG("Received %d bytes", len);
 
 			while (len > 0) {
-                LOG_DBG("Data: %X | Offset: %d", drv_data->response.data[offset], offset);
+				LOG_DBG("Data: %X | Offset: %d", drv_data->response.data[offset],
+					offset);
 				switch (offset) {
 				case 0:
 					if (drv_data->response.data[offset] == TMR_START_HEADER) {
 						LOG_DBG("Msg Header: %X",
 							drv_data->response.data[offset]);
 						drv_data->status = RESPONSE_PENDING;
-						break;
 					} else if (drv_data->response.data[offset] ==
 						   ERROR_COMMAND_RESPONSE_TIMEOUT) {
 						drv_data->status = ERROR_COMMAND_RESPONSE_TIMEOUT;
 					}
-					len = 0;
-					offset = 0;
 					break;
 				case 1:
 					drv_data->response.msg_len =
@@ -211,6 +210,12 @@ static void uart_rx_handler(const struct device *dev, void *dev_m6e)
 					break;
 				}
 
+				if (drv_data->status == ERROR_COMMAND_RESPONSE_TIMEOUT) {
+					len = 0;
+					offset = 0;
+					break;
+				}
+
 				offset++;
 				len--;
 				drv_data->response.len = offset;
@@ -222,20 +227,21 @@ static void uart_rx_handler(const struct device *dev, void *dev_m6e)
 		drv_data->response.len = 0;
 		drv_data->status = RESPONSE_SUCCESS;
 		LOG_DBG("Response success.");
-        if (callback != NULL) {
-			callback(dev, dev_m6e);
-		}
 	} else if (offset > M6E_NANO_BUF_SIZE) {
 		drv_data->response.len = 0;
 		drv_data->status = RESPONSE_FAIL;
 		m6e_nano_uart_flush(dev);
 		LOG_WRN("Response exceeds buffer, %d.", offset);
 	} else if (drv_data->status == ERROR_COMMAND_RESPONSE_TIMEOUT) {
-        drv_data->response.len = 0;
-        drv_data->status = RESPONSE_FAIL;
-        m6e_nano_uart_flush(dev);
-        LOG_WRN("Command response timeout.");
-    }
+		drv_data->response.len = 0;
+		drv_data->status = RESPONSE_FAIL;
+		m6e_nano_uart_flush(dev);
+		LOG_WRN("Command response timeout.");
+	}
+
+	if (callback != NULL) {
+		callback(dev, dev_m6e);
+	}
 }
 
 /**
@@ -246,7 +252,8 @@ static void uart_rx_handler(const struct device *dev, void *dev_m6e)
  * @param length Length of the command.
  * @return int32_t Status of the response.
  */
-int user_send_command(const struct device *dev, uint8_t *command, const uint8_t length, const bool timeout)
+int user_send_command(const struct device *dev, uint8_t *command, const uint8_t length,
+		      const bool timeout)
 {
 	int32_t timeout_in_ms = CFG_M6E_NANO_SERIAL_TIMEOUT;
 	struct m6e_nano_data *data = (struct m6e_nano_data *)dev->data;
@@ -299,19 +306,19 @@ int user_send_command(const struct device *dev, uint8_t *command, const uint8_t 
 		uart_poll_out(cfg->uart_dev, tx->data[i]);
 	}
 
-    if(timeout) {
-        while (data->status != RESPONSE_SUCCESS) {
-            if (timeout_in_ms < 0) {
-                LOG_WRN("Command timeout.");
-                data->status = RESPONSE_CLEAR;
-                return -ETIMEDOUT;
-            }
-            timeout_in_ms -= 10;
-            k_msleep(10);
-        }
-        return 0;
-    }
-    return 0;
+	if (timeout) {
+		while (data->status != RESPONSE_SUCCESS) {
+			if (timeout_in_ms < 0) {
+				LOG_WRN("Command timeout.");
+				data->status = RESPONSE_CLEAR;
+				return -ETIMEDOUT;
+			}
+			timeout_in_ms -= 10;
+			k_msleep(10);
+		}
+		return 0;
+	}
+	return 0;
 }
 
 /**
@@ -423,8 +430,7 @@ void m6e_nano_stop_reading(const struct device *dev)
 void m6e_nano_set_power_mode(const struct device *dev, uint8_t mode)
 {
 	uint8_t data[1] = {mode};
-	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_POWER_MODE, data, sizeof(data),
-				   true);
+	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_POWER_MODE, data, sizeof(data), true);
 }
 
 /**
@@ -435,8 +441,7 @@ void m6e_nano_set_power_mode(const struct device *dev, uint8_t mode)
 void m6e_nano_set_antenna_port(const struct device *dev)
 {
 	uint8_t data[2] = {0x01, 0x01};
-	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_ANTENNA_PORT, data, sizeof(data),
-				   true);
+	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_ANTENNA_PORT, data, sizeof(data), true);
 }
 
 /**
@@ -458,8 +463,7 @@ void m6e_nano_set_read_power(const struct device *dev, uint16_t power)
 		data[x] = (uint8_t)(power >> (8 * (size - 1 - x)));
 	}
 
-	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_READ_TX_POWER, data, size,
-				   true);
+	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_READ_TX_POWER, data, size, true);
 }
 
 /**
@@ -496,8 +500,7 @@ SETU8(newMsg, i, (uint8_t)TMR_TAG_PROTOCOL_GEN2); // protocol ID
 void m6e_nano_set_region(const struct device *dev, uint8_t region)
 {
 
-	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_REGION, &region, sizeof(region),
-				   true);
+	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_REGION, &region, sizeof(region), true);
 }
 
 /**
@@ -509,8 +512,7 @@ int m6e_nano_get_version(const struct device *dev)
 {
 	uint8_t data[] = {};
 
-	return m6e_nano_construct_command(dev, TMR_SR_OPCODE_VERSION, data, sizeof(data),
-				   true);
+	return m6e_nano_construct_command(dev, TMR_SR_OPCODE_VERSION, data, sizeof(data), true);
 }
 
 /**
@@ -525,8 +527,7 @@ void m6e_nano_set_tag_protocol(const struct device *dev, uint8_t protocol)
 	data[0] = 0; // Opcode expects padding for 16-bits
 	data[1] = protocol;
 
-	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_TAG_PROTOCOL, data, sizeof(data),
-				   true);
+	m6e_nano_construct_command(dev, TMR_SR_OPCODE_SET_TAG_PROTOCOL, data, sizeof(data), true);
 }
 
 /**
@@ -539,8 +540,7 @@ void m6e_nano_get_write_power(const struct device *dev)
 	uint8_t data[] = {0x00}; // Just return power
 	// uint8_t data[] = {0x01}; // Return power with limits
 
-	m6e_nano_construct_command(dev, TMR_SR_OPCODE_GET_WRITE_TX_POWER, data, sizeof(data),
-				   true);
+	m6e_nano_construct_command(dev, TMR_SR_OPCODE_GET_WRITE_TX_POWER, data, sizeof(data), true);
 }
 
 /**
