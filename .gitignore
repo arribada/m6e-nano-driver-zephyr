@@ -1,0 +1,20 @@
+# Vscode
+*.code-workspace
+
+# MacOS
+.DS_Store
+
+# Zephyr
+!zephyr/module.yml
+build
+twister-out*/
+.west
+
+# Docs
+docs/html/*
+docs/latex/*
+
+# Testing
+.pytest_cache
+__pycache__
+.vscode*
