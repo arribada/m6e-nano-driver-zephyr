@@ -123,7 +123,7 @@ int main(void)
 	m6e_nano_set_region(dev, REGION_EUROPE);
 
 	LOG_INF("Setting read power...");
-	m6e_nano_set_read_power(dev, 1000);
+	m6e_nano_set_read_power(dev, 2700);
 
 	LOG_INF("Setting power mode...");
 	m6e_nano_set_power_mode(dev, TMR_SR_POWER_MODE_MED_SAVE);
