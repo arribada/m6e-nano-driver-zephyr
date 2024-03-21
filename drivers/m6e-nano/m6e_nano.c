@@ -189,7 +189,6 @@ static void uart_rx_handler(const struct device *dev, void *dev_m6e)
 						LOG_DBG("Msg Header: %X",
 							drv_data->response.data[offset]);
 						drv_data->status = RESPONSE_PENDING;
-						// break;
 					} else if (drv_data->response.data[offset] ==
 						   ERROR_COMMAND_RESPONSE_TIMEOUT) {
 						drv_data->status = ERROR_COMMAND_RESPONSE_TIMEOUT;

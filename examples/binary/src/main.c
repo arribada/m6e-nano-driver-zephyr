@@ -51,7 +51,7 @@ void read_callback(const struct device *dev, void *user_data)
 			break;
 		case RESPONSE_IS_KEEPALIVE:
 			res_str = "RESPONSE_IS_KEEPALIVE";
-            seen_tags.total = 0;
+			seen_tags.total = 0;
 			printk("Tag count: %d\n", seen_tags.total);
 			break;
 		case RESPONSE_IS_TAGFOUND:
@@ -79,7 +79,7 @@ void read_callback(const struct device *dev, void *user_data)
 			}
 
 			if (ret == 1) {
-            printk("Tag count: %d\n", seen_tags.total);
+				printk("Tag count: %d\n", seen_tags.total);
 				break;
 			} else {
 				strcpy(seen_tags.tags[seen_tags.total], new_tag_str);
@@ -123,7 +123,12 @@ int main(void)
 	m6e_nano_set_region(dev, REGION_EUROPE);
 
 	LOG_INF("Setting read power...");
-	m6e_nano_set_read_power(dev, 1000);
+	if (CONFIG_M6E_NANO_DEFAULT_POWER) {
+		LOG_INF("Read power set to KConfig: %d", CONFIG_M6E_NANO_DEFAULT_POWER);
+		m6e_nano_set_read_power(dev, CONFIG_M6E_NANO_DEFAULT_POWER);
+	} else {
+		m6e_nano_set_read_power(dev, 1000);
+	}
 
 	LOG_INF("Setting power mode...");
 	m6e_nano_set_power_mode(dev, TMR_SR_POWER_MODE_MED_SAVE);
@@ -136,5 +141,6 @@ int main(void)
 	return 0;
 }
 
-// Headers      Status     Bootloader 
-// hFF h14 h03 | h00 h00 | h14 h12 h08 h00 h30 | h00 h00 h02 h20 h22 h08 | h04 h01 h0B h01 h25 h00 h00 h00 h10 | h79 h62 
+// Headers      Status     Bootloader
+// hFF h14 h03 | h00 h00 | h14 h12 h08 h00 h30 | h00 h00 h02 h20 h22 h08 | h04 h01 h0B h01 h25 h00
+// h00 h00 h10 | h79 h62
