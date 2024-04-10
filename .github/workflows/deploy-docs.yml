@@ -14,8 +14,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - uses: DenverCoder1/doxygen-github-pages-action@v1
+      - uses: DenverCoder1/doxygen-github-pages-action@v1.3.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: gh-pages
           folder: docs/build/html
+          config_file: docs/doxygen.config
