@@ -12,6 +12,9 @@ DOC_OUTPUT_DIR := $(DOC_DIR)/build
 # Set the command to generate the documentation
 DOC_GENERATOR := doxygen
 
+# Set test outputs
+TEST_DIR := twister-*
+
 # Default target
 all: docs
 
@@ -21,10 +24,11 @@ docs:
 	$(DOC_GENERATOR) $(DOC_SRC_DIR)/doxygen.config
 
 test:
+	$(clean)
 	west twister --device-testing --device-serial /dev/ttyACM0 -p swan_r5  -T tests/integration --integration
 
 # Target to clean the generated documentation
 clean:
-	rm -rf $(DOC_OUTPUT_DIR)
+	rm -rf $(DOC_OUTPUT_DIR) $(TEST_DIR)
 
 .PHONY: all docs clean
