@@ -1,0 +1,21 @@
+name: Build Docs
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install Doxygen
+        uses: ssciwr/doxygen-install@v1
+        with:
+          version: "1.10.0"
+          
+      - run: make docs
