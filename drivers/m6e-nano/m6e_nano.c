@@ -175,7 +175,7 @@ static void uart_rx_handler(const struct device *dev, void *dev_m6e)
 	m6e_nano_callback_t callback = drv_data->callback;
 
 	if ((uart_irq_update(dev) > 0) && (uart_irq_is_pending(dev) > 0)) {
-		while (uart_irq_rx_ready(dev)) {
+		if (uart_irq_rx_ready(dev)) {
 
 			len = uart_fifo_read(dev, &drv_data->response.data[offset], 255 - offset);
 			LOG_DBG("Received %d bytes", len);
