@@ -673,9 +673,7 @@ static int m6e_nano_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	while (uart_irq_rx_ready(cfg->uart_dev)) {
-		m6e_nano_uart_flush(cfg->uart_dev);
-	}
+	m6e_nano_uart_flush(cfg->uart_dev);
 
 	struct m6e_nano_buf *rx = &drv_data->response;
 	rx->len = 0;
