@@ -237,6 +237,11 @@ static void uart_rx_handler(const struct device *dev, void *dev_m6e)
 		drv_data->status = RESPONSE_FAIL;
 		m6e_nano_uart_flush(dev);
 		LOG_WRN("Command response timeout.");
+	} else {
+		enum uart_rx_stop_reason uart_error = uart_err_check(dev);
+		LOG_WRN("UART error: %d", uart_error);
+		m6e_nano_uart_flush(dev);
+		return;
 	}
 
 	if (callback != NULL) {
