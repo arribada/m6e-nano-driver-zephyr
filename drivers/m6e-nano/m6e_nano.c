@@ -68,6 +68,7 @@ static void user_set_command_callback(const struct device *dev, m6e_nano_callbac
  */
 static void m6e_nano_uart_flush(const struct device *dev)
 {
+	uart_irq_rx_disable(dev);
 	struct m6e_nano_data *drv_data = dev->data;
 	uint8_t buf;
 
@@ -75,6 +76,7 @@ static void m6e_nano_uart_flush(const struct device *dev)
 		;
 	}
 	memset(&drv_data->response.data, 0, M6E_NANO_BUF_SIZE);
+	uart_irq_rx_enable(dev);
 
 	LOG_DBG("UART RX buffer flushed.");
 }
@@ -178,7 +180,7 @@ static void uart_rx_handler(const struct device *dev, void *dev_m6e)
 		if (uart_irq_rx_ready(dev)) {
 
 			len = uart_fifo_read(dev, &drv_data->response.data[offset], 255 - offset);
-			LOG_DBG("Received %d bytes", len);
+			LOG_DBG("Received %d bytes - offset %d", len, offset);
 
 			while (len > 0) {
 				LOG_DBG("Data: %X | Offset: %d", drv_data->response.data[offset],
@@ -237,11 +239,6 @@ static void uart_rx_handler(const struct device *dev, void *dev_m6e)
 		drv_data->status = RESPONSE_FAIL;
 		m6e_nano_uart_flush(dev);
 		LOG_WRN("Command response timeout.");
-	} else {
-		enum uart_rx_stop_reason uart_error = uart_err_check(dev);
-		LOG_WRN("UART error: %d", uart_error);
-		m6e_nano_uart_flush(dev);
-		return;
 	}
 
 	if (callback != NULL) {
